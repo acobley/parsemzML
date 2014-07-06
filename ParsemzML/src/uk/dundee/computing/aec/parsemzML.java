@@ -128,7 +128,7 @@ public class parsemzML extends DefaultHandler {
     public static void main(String[] args) {
     	outputFile =  args[1];
     	outFile = new File(outputFile).getName();
-        new ParsemzML(args[0]);
+        new parsemzML(args[0]);
         
         try {
 			writer.close();
