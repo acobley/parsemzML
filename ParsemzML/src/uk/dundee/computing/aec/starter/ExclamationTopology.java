@@ -120,6 +120,7 @@ PRIMARY KEY (minute,interaction_time)
         public void cleanup(){
         	
         	//cluster.shutdown();
+        	session.close();
         	cluster.close();
         }
         @Override

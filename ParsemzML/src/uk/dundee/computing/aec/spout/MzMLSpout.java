@@ -226,5 +226,11 @@ public class MzMLSpout extends BaseRichSpout {
 	  public void declareOutputFields(OutputFieldsDeclarer declarer) {
 	    declarer.declare(new Fields("word","date"));
 	  }
+	  
+	  @Override
+	  public void close(){
+		  session.close();
+		  cluster.close();
+	  }
 
 	}
