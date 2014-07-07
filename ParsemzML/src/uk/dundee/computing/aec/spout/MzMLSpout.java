@@ -24,13 +24,20 @@ import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
+import com.datastax.driver.core.BoundStatement;
 import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.PreparedStatement;
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 
 public class MzMLSpout extends BaseRichSpout {
 	Cluster cluster;
     Session session;
-    
+    String xmlFile="561L1AIL00.mzML";
+    PreparedStatement SelectStatement=null;
+    int Count=0;
+    HandlemzML mzML=null;
 	class HandlemzML extends DefaultHandler{
 		String tmpValue;
 	    String scan;
@@ -42,20 +49,19 @@ public class MzMLSpout extends BaseRichSpout {
 	    String precursorIonCharge;
 	    String precursorIonIntensity;
 		int newFlag=0;
-		String outputFile;
-		String outFile;
+		
+		String inFile;
+		int MaxCount=0;
+		
 		private StringBuffer contentBuffer = new StringBuffer();
+		PreparedStatement statement=null;
 		
 		
-		BufferedWriter writer = null;{
-			try
-			{
-				writer = new BufferedWriter( new FileWriter( outputFile ));			
-			} catch ( IOException e){
-				}
-		}
 		
-		public HandlemzML(String inputFile,Cluster cluster,Session session) {		
+		public HandlemzML(String inputFile,Cluster cluster,Session session,PreparedStatement statement) {	
+			System.out.println("Parsing File");
+			inFile=inputFile;
+			this.statement=statement;
 	        parseDocument(inputFile);
 	    }
 	 
@@ -130,10 +136,22 @@ public class MzMLSpout extends BaseRichSpout {
 	    	}   
 	    	
 	    	if (element.equalsIgnoreCase("spectrum")) {    		        	 		    	            	
-	    			try {    			
-					writer.write(outFile+"\t"+scan+"\t"+msLevel+"\t"+retTime+"\t"+precursorIonMZ+"\t"+precursorIonIntensity+"\t"+precursorIonCharge+"\t"+mzArray+"\t"+intensityArray);
-					writer.newLine();
-				} catch (IOException e) {
+	    		try {   
+	    			
+	    			BoundStatement boundStatement = new BoundStatement(statement);
+	    			
+	    			//String CQL="insert into mzMLKeyspace.mzMLTemp (mzArray,scan,name)"
+	    		    //      		+ "Values ('"+mzArray+"','"+scan+"',"+inFile+"')";
+	    		          //System.out.println("CQL  "+CQL);
+	    			int iScan=0;
+	    			try{
+	    			   iScan=Integer.parseInt(scan);
+	    			}catch(Exception et){
+	    				System.out.println("Can't convert scan int");
+	    			}
+	    		    session.execute(boundStatement.bind(mzArray,iScan,inFile));
+					MaxCount++;
+				} catch (Exception e) {
 					e.printStackTrace();
 				}
 	    	
@@ -144,6 +162,9 @@ public class MzMLSpout extends BaseRichSpout {
 	    public void characters(char[] ac, int i, int j) throws SAXException {
 	        //tmpValue = new String(ac, i, j);
 	        contentBuffer.append(ac, i, j); 
+	    }
+	    public int getMax(){
+	    	return MaxCount;
 	    }
 
 	}
@@ -159,16 +180,37 @@ public class MzMLSpout extends BaseRichSpout {
    	     
 
     	 session = cluster.connect();
-    	 HandlemzML mxML=new HandlemzML("",cluster,session);
-
+    	 PreparedStatement statement = session.prepare("insert into mzMLKeyspace.mzMLTemp"+
+                 "(mzArray,"+
+                 "scan,"+
+                 "name"+
+                 ") VALUES (?, ?, ?);");
+    	 SelectStatement=session.prepare("select * from mzMLKeyspace.mzMLTemp where name= ? and scan=?;");
+    	 try{
+    	  mzML=new HandlemzML(xmlFile,cluster,session,statement);
+    	 }catch(Exception et){
+    		 System.out.println("Can't load mzML parser");
+    	 }
 	  }
 
 	  @Override
 	  public void nextTuple() {
 	    Utils.sleep(100);
-	    String[] sentences = new String[]{ "A","B","C","D" };
+	    ResultSet rs=null;
+	    if (mzML.getMax()>Count){
+	    	
+	    	BoundStatement boundStatement = new BoundStatement(SelectStatement);
+	    	rs=session.execute(boundStatement.bind(xmlFile,Count));
+	    	Count++;
+	    }
+	    Date d= new Date();
 	    String sentence="";
-		Date d= new Date();
+	    if (!rs.isExhausted()){
+	       Row rr=rs.one();
+	       sentence=rr.getString("mzArray");
+	    }
+	    
+	    
 	    _collector.emit(new Values(sentence,d.toString()));
 	  }
 

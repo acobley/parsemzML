@@ -119,12 +119,13 @@ PRIMARY KEY (minute,interaction_time)
   public static void main(String[] args) throws Exception {
     TopologyBuilder builder = new TopologyBuilder();
     
-    builder.setSpout("mzML", new MzMLSpout(), 10);
+    builder.setSpout("mzML", new MzMLSpout(), 1);
+   
 //    builder.setSpout("sentence", new RandomSentenceSpout(), 10);
-//    builder.setBolt("exclaim1", new ExclamationBolt(), 3).shuffleGrouping("sentence");
+//    builder.setBolt("exclaim1", new ExclamationBolt(), 3).shuffleGrouping("mzML");
 //     builder.setBolt("exclaim2", new ExclamationBolt(), 2).shuffleGrouping("word");
 //     builder.setBolt("exclaim3", new ExclamationBolt(), 2).shuffleGrouping("exclaim2");
- //    builder.setBolt("Saver", new SaverBolt(), 4).shuffleGrouping("mzML");
+     builder.setBolt("Saver", new SaverBolt(), 4).shuffleGrouping("mzML");
      //builder.setBolt("Saver2", new SaverBolt(), 4).shuffleGrouping("exclaim3");
      //builder.setBolt("Saver3", new SaverBolt(), 4).shuffleGrouping("exclaim2").shuffleGrouping("exclaim1");
     Config conf = new Config();
@@ -146,13 +147,5 @@ PRIMARY KEY (minute,interaction_time)
       
   }
   }
-  
-  
-  //builder.setSpout("word", new TestWordSpout(), 10);
-  //builder.setSpout("sentence", new RandomSentenceSpout(), 10);
-  //builder.setBolt("exclaim1", new ExclamationBolt(), 3).shuffleGrouping("sentence");
-  // builder.setBolt("exclaim2", new ExclamationBolt(), 2).shuffleGrouping("word");
-  // builder.setBolt("exclaim3", new ExclamationBolt(), 2).shuffleGrouping("exclaim2");
-  // builder.setBolt("Saver", new SaverBolt(), 4).shuffleGrouping("exclaim1");
-  // builder.setBolt("Saver2", new SaverBolt(), 4).shuffleGrouping("exclaim3");
+
 }
