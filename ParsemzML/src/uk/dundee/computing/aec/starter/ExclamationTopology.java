@@ -16,18 +16,23 @@ import backtype.storm.utils.Utils;
 import storm.starter.spout.*;
 import uk.dundee.computing.aec.spout.MzMLSpout;
 
+import java.nio.ByteBuffer;
 import java.util.Date;
 import java.util.Map;
 
+import com.datastax.driver.core.BoundStatement;
 import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
+
+import org.apache.commons.codec.binary.Base64;
 
 /**
  * This is a basic example of a Storm topology.
  */
 public class ExclamationTopology {
 
-  public static class ExclamationBolt extends BaseRichBolt {
+  public static class ConvertToBlobBolt extends BaseRichBolt {
     OutputCollector _collector;
     String ComponentId;
     @Override
@@ -39,8 +44,10 @@ public class ExclamationTopology {
     @Override
     public void execute(Tuple tuple) {
     Date d=new Date();
+      Base64 bs= new Base64();
+      byte[] mzdata=bs.decode(tuple.getString(0)) ;
       
-      _collector.emit(tuple, new Values(tuple.getString(0) + "!! "+ComponentId,d.toString()));
+      _collector.emit(tuple, new Values(mzdata,d.toString()));
       _collector.ack(tuple);
     }
   
@@ -59,6 +66,7 @@ public class ExclamationTopology {
        
         Cluster cluster;
         Session session;
+        PreparedStatement InsertStatement;
 /*    keyspace for the stormsync    
 CREATE KEYSPACE keyspace2 WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor': 1};
 use keyspace2;
@@ -81,6 +89,8 @@ PRIMARY KEY (minute,interaction_time)
        	     
 
         	 session = cluster.connect();
+        	 InsertStatement = session.prepare("insert into Keyspace2.StormSync (minute,processtime,interaction_time,mzdata,saverid)" +
+               		 " VALUES (?, ?, ?,?,?);");
         	_collector = collector;
         	ComponentId=context.getThisComponentId();
         }
@@ -90,14 +100,18 @@ PRIMARY KEY (minute,interaction_time)
        
           Date dDate=new Date();
           java.util.UUID uuid= getTimeUUID();
-          String Value =tuple.getString(0) ;
+          byte[] Value = tuple.getBinary(0);
+          ByteBuffer bf = ByteBuffer.wrap(Value);
+          //String Value =tuple.getString(0) ;
           String d=tuple.getString(1);
           if (d==null)
         	  d="no time";
-          String CQL="insert into Keyspace2.StormSync (minute,processtime,interaction_time,Value,saverid)"
-          		+ "Values ('"+dDate.toString()+"','"+d+"',"+uuid+",'"+Value+"','"+ComponentId+"')";
+          //String CQL="insert into Keyspace2.StormSync (minute,processtime,interaction_time,Value,saverid)"
+          	//	+ "Values ('"+dDate.toString()+"','"+d+"',"+uuid+",'"+Value+"','"+ComponentId+"')";
           //System.out.println("CQL  "+CQL);
-          session.execute(CQL);
+          //session.execute(CQL);
+          		BoundStatement boundStatement = new BoundStatement(InsertStatement);
+    	    	session.execute(boundStatement.bind(dDate.toString(),d,uuid,bf,ComponentId));
           //cluster.shutdown();
         
           _collector.ack(tuple);
@@ -122,10 +136,10 @@ PRIMARY KEY (minute,interaction_time)
     builder.setSpout("mzML", new MzMLSpout(), 1);
    
 //    builder.setSpout("sentence", new RandomSentenceSpout(), 10);
-//    builder.setBolt("exclaim1", new ExclamationBolt(), 3).shuffleGrouping("mzML");
+       builder.setBolt("blob", new ConvertToBlobBolt(), 3).shuffleGrouping("mzML");
 //     builder.setBolt("exclaim2", new ExclamationBolt(), 2).shuffleGrouping("word");
 //     builder.setBolt("exclaim3", new ExclamationBolt(), 2).shuffleGrouping("exclaim2");
-     builder.setBolt("Saver", new SaverBolt(), 4).shuffleGrouping("mzML");
+     builder.setBolt("Saver", new SaverBolt(), 4).shuffleGrouping("blob");
      //builder.setBolt("Saver2", new SaverBolt(), 4).shuffleGrouping("exclaim3");
      //builder.setBolt("Saver3", new SaverBolt(), 4).shuffleGrouping("exclaim2").shuffleGrouping("exclaim1");
     Config conf = new Config();
