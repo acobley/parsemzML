@@ -24,12 +24,15 @@ import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
+import uk.dundee.computing.aec.lib.Keyspaces;
+
 import com.datastax.driver.core.BoundStatement;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
+import com.datastax.driver.core.exceptions.NoHostAvailableException;
 
 public class MzMLSpout extends BaseRichSpout {
 	Cluster cluster;
@@ -183,11 +186,21 @@ public class MzMLSpout extends BaseRichSpout {
 	  @Override
 	  public void open(Map conf, TopologyContext context, SpoutOutputCollector collector) {
 	    _collector = collector;
-       	//cluster = Cluster.builder().addContactPoint("192.168.2.10").build(); //vagrant cassandra cluster
-    	cluster = Cluster.builder().addContactPoint("127.0.0.1").build(); //vagrant cassandra cluster
-   	     
+	    try {
+	    	cluster = Cluster.builder().addContactPoint("192.168.2.10").build(); //vagrant cassandra cluster
+	    	session = cluster.connect(); 
+	    }catch(NoHostAvailableException et){
+	    	try{
+	    		cluster = Cluster.builder().addContactPoint("127.0.0.1").build(); //localhost
+	    		session = cluster.connect();
+	    	}catch(NoHostAvailableException et1){
+                 //can't get to a cassandra cluster bug out
+	    		return;
+	    		
+	    	}
+	    } 
 
-    	 session = cluster.connect();
+    	 
     	 PreparedStatement insertStatement = session.prepare("insert into mzMLKeyspace.mzMLTemp"+
                  "(mzArray,"+
                  "scan,"+
@@ -200,6 +213,8 @@ public class MzMLSpout extends BaseRichSpout {
                  "intensityArray"+
                  ") VALUES (?, ?, ?,?,?,?,?,?,?);");
     	 SelectStatement=session.prepare("select * from mzMLKeyspace.mzMLTemp where name= ? and scan=?;");
+    	 Keyspaces kp = new Keyspaces();
+    	 kp.SetUpKeySpaces(cluster);
     	 try{
     	  mzML=new HandlemzML(xmlFile,cluster,session,insertStatement);
     	 }catch(Exception et){
@@ -209,23 +224,30 @@ public class MzMLSpout extends BaseRichSpout {
 
 	  @Override
 	  public void nextTuple() {
-	    Utils.sleep(100);
-	    ResultSet rs=null;
-	    if (mzML.getMax()>Count){
-	    	
-	    	BoundStatement boundStatement = new BoundStatement(SelectStatement);
-	    	rs=session.execute(boundStatement.bind(xmlFile,Count));
-	    	Count++;
-	    }
-	    Date d= new Date();
-	    String sentence="";
-	    if (!rs.isExhausted()){
-	       Row rr=rs.one();
-	       sentence=rr.getString("mzArray");
-	    }
-	    
-	    
-	    _collector.emit(new Values(sentence,d.toString()));
+		  Utils.sleep(100);
+		  ResultSet rs=null;
+		  if (mzML.getMax()>Count){
+
+			  BoundStatement boundStatement = new BoundStatement(SelectStatement);
+			  rs=session.execute(boundStatement.bind(xmlFile,Count));
+			  Count++;
+
+			  Date d= new Date();
+			  String mzArray="";
+			  String intensityArray="";
+			  String name="";
+			  int count=0;
+			  if (!rs.isExhausted()){
+				  Row rr=rs.one();
+				  mzArray=rr.getString("mzArray");
+				  intensityArray=rr.getString("intensityArray");
+				  name=rr.getString("name");
+				  count=rr.getInt("scan");
+			  }
+
+
+			  _collector.emit(new Values(name,count,mzArray,intensityArray,d.toString()));
+		  }
 	  }
 
 	  @Override
@@ -238,7 +260,7 @@ public class MzMLSpout extends BaseRichSpout {
 
 	  @Override
 	  public void declareOutputFields(OutputFieldsDeclarer declarer) {
-	    declarer.declare(new Fields("word","date"));
+	    declarer.declare(new Fields("name","scan","mzArray","intensityArray","date"));
 	  }
 	  
 	  @Override
