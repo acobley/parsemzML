@@ -25,6 +25,7 @@ import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.NoHostAvailableException;
 
+import org.apache.commons.codec.binary.Base32;
 import org.apache.commons.codec.binary.Base64;
 
 /**
@@ -44,9 +45,10 @@ public class ExclamationTopology {
 		@Override
 		public void execute(Tuple tuple) {
 			Date d=new Date();
-			Base64 bs= new Base64();
-			byte[] mzdata=bs.decode(tuple.getStringByField("mzArray")) ;
-			byte[] intensitydata=bs.decode(tuple.getStringByField("intensityArray")) ;
+			Base64 bs64= new Base64();
+			Base32 bs32= new Base32();
+			byte[] mzdata=bs64.decode(tuple.getStringByField("mzArray")) ;
+			byte[] intensitydata=bs32.decode(tuple.getStringByField("intensityArray")) ;
 			String name =tuple.getStringByField("name");
 			int count= tuple.getIntegerByField("scan");
 			_collector.emit(tuple, new Values(name,count,mzdata,intensitydata,d.toString()));
