@@ -16,6 +16,7 @@ import uk.dundee.computing.aec.lib.Keyspaces;
 import uk.dundee.computing.aec.spout.MzMLSpout;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Date;
 import java.util.Map;
 
@@ -46,9 +47,10 @@ public class ExclamationTopology {
 		public void execute(Tuple tuple) {
 			Date d=new Date();
 			Base64 bs64= new Base64();
-			Base32 bs32= new Base32();
-			byte[] mzdata=bs64.decode(tuple.getStringByField("mzArray")) ;
-			byte[] intensitydata=bs32.decode(tuple.getStringByField("intensityArray")) ;
+			
+			
+			byte[] mzdata=bs64.decodeBase64(tuple.getStringByField("mzArray")) ;
+			byte[] intensitydata=bs64.decodeBase64(tuple.getStringByField("intensityArray")) ;
 			String name =tuple.getStringByField("name");
 			int count= tuple.getIntegerByField("scan");
 			_collector.emit(tuple, new Values(name,count,mzdata,intensitydata,d.toString()));
@@ -107,7 +109,9 @@ public class ExclamationTopology {
 			int count= tuple.getIntegerByField("scan");
 
 			ByteBuffer mzbf = ByteBuffer.wrap(mzdata);
+			mzbf.order(ByteOrder.LITTLE_ENDIAN);
 			ByteBuffer intensitybf = ByteBuffer.wrap(intensitydata);
+			intensitybf.order(ByteOrder.LITTLE_ENDIAN);
 			//String Value =tuple.getString(0) ;
 			String d=tuple.getStringByField("date");
 			if (d==null)
