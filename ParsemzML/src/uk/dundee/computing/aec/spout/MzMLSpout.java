@@ -211,7 +211,7 @@ public class MzMLSpout extends BaseRichSpout {
                  "precursorIonIntensity,"+
                  "precursorIonCharge,"+           
                  "intensityArray"+
-                 ") VALUES (?, ?, ?,?,?,?,?,?,?);");
+                 ") VALUES (?, ?, ?,?,?,?,?,?,?) USING TTL 600;");
     	 SelectStatement=session.prepare("select * from mzMLKeyspace.mzMLTemp where name= ? and scan=?;");
     	 Keyspaces kp = new Keyspaces();
     	 kp.SetUpKeySpaces(cluster);
