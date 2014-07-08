@@ -139,17 +139,25 @@ public class MzMLSpout extends BaseRichSpout {
 	    		try {   
 	    			
 	    			BoundStatement boundStatement = new BoundStatement(statement);
-	    			
-	    			//String CQL="insert into mzMLKeyspace.mzMLTemp (mzArray,scan,name)"
-	    		    //      		+ "Values ('"+mzArray+"','"+scan+"',"+inFile+"')";
-	    		          //System.out.println("CQL  "+CQL);
 	    			int iScan=0;
+	    			float fmsLevel=0;
+	    			float fretTime=0;
+
+	    			float fprecursorIonMZ=0;
+	    			float fprecursorIonCharge=0;
+	    			float fprecursorIonIntensity=0;
 	    			try{
 	    			   iScan=Integer.parseInt(scan);
+	    			   fmsLevel=Float.parseFloat(msLevel);
+		    		   fretTime=Float.parseFloat(retTime);
+                       fprecursorIonMZ=Float.parseFloat(precursorIonMZ);
+		    		   fprecursorIonCharge=Float.parseFloat(precursorIonCharge);
+		    		   fprecursorIonIntensity=Float.parseFloat(precursorIonIntensity);
+		    		   
 	    			}catch(Exception et){
-	    				System.out.println("Can't convert scan int");
+	    				System.out.println("Can't convert scan int" +et);
 	    			}
-	    		    session.execute(boundStatement.bind(mzArray,iScan,inFile));
+	    		    session.execute(boundStatement.bind(mzArray,iScan,inFile,fmsLevel ,fretTime,fprecursorIonMZ,fprecursorIonIntensity ,fprecursorIonCharge,intensityArray ));
 					MaxCount++;
 				} catch (Exception e) {
 					e.printStackTrace();
@@ -180,14 +188,20 @@ public class MzMLSpout extends BaseRichSpout {
    	     
 
     	 session = cluster.connect();
-    	 PreparedStatement statement = session.prepare("insert into mzMLKeyspace.mzMLTemp"+
+    	 PreparedStatement insertStatement = session.prepare("insert into mzMLKeyspace.mzMLTemp"+
                  "(mzArray,"+
                  "scan,"+
-                 "name"+
-                 ") VALUES (?, ?, ?);");
+                 "name,"+
+                 "msLevel,"+
+                 "retTime,"+
+                 "precursorIonMZ,"+
+                 "precursorIonIntensity,"+
+                 "precursorIonCharge,"+           
+                 "intensityArray"+
+                 ") VALUES (?, ?, ?,?,?,?,?,?,?);");
     	 SelectStatement=session.prepare("select * from mzMLKeyspace.mzMLTemp where name= ? and scan=?;");
     	 try{
-    	  mzML=new HandlemzML(xmlFile,cluster,session,statement);
+    	  mzML=new HandlemzML(xmlFile,cluster,session,insertStatement);
     	 }catch(Exception et){
     		 System.out.println("Can't load mzML parser");
     	 }
